@@ -21,7 +21,7 @@ export default function Home() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || !isConnected) return;
 
     const userMessage: Message = {
       role: 'user',
@@ -68,7 +68,17 @@ export default function Home() {
           <div className="p-6">
             <div className="h-[600px] flex flex-col">
               <div className="flex-1 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent pr-4">
-                {messages.length === 0 ? (
+                {!isConnected ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+                      <SparklesIcon className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">Connect your wallet to start!</p>
+                      <p className="text-sm text-gray-500 mt-1">Use the connect button above to get started</p>
+                    </div>
+                  </div>
+                ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
                       <SparklesIcon className="w-8 h-8 text-blue-500" />
@@ -114,8 +124,8 @@ export default function Home() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about your wallet..."
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-6 py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={isConnected ? "Ask about your wallet..." : "Connect wallet to chat"}
+                    className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-6 py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={!isConnected}
                   />
                   <button

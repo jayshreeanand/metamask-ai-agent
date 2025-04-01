@@ -1,103 +1,41 @@
-import { useWallet } from '@/hooks/useWallet';
-import { Transaction } from './wallet';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true
+});
 
 export interface AIResponse {
   content: string;
-  action?: {
-    type: 'transaction' | 'balance' | 'transactions';
-    data: unknown;
-  };
 }
 
-export function useAI() {
-  const wallet = useWallet();
-
+export const useAI = () => {
   const processMessage = async (message: string): Promise<AIResponse> => {
-    const lowerMessage = message.toLowerCase();
-
-    // Check for balance queries
-    if (lowerMessage.includes('balance') || lowerMessage.includes('how much')) {
-      const balance = wallet.balance;
-      if (balance) {
-        return {
-          content: `Your current balance is ${parseFloat(balance.balance).toFixed(4)} ${balance.symbol}`,
-          action: {
-            type: 'balance',
-            data: balance,
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful AI assistant for a MetaMask wallet interface. You can help users understand their wallet balance, transactions, and provide general guidance about cryptocurrency and Web3."
           },
-        };
-      }
+          {
+            role: "user",
+            content: message
+          }
+        ],
+      });
+
       return {
-        content: 'Please connect your wallet to check your balance.',
+        content: completion.choices[0].message.content || "I'm sorry, I couldn't process that request."
       };
+    } catch (error) {
+      console.error('Error processing message:', error);
+      throw error;
     }
-
-    // Check for transaction queries
-    if (lowerMessage.includes('transaction') || lowerMessage.includes('history')) {
-      const transactions = wallet.transactions;
-      if (transactions.length > 0) {
-        return {
-          content: `I found ${transactions.length} recent transactions. Here are the details:`,
-          action: {
-            type: 'transactions',
-            data: transactions,
-          },
-        };
-      }
-      return {
-        content: 'No recent transactions found.',
-      };
-    }
-
-    // Check for send transaction commands
-    if (lowerMessage.includes('send') || lowerMessage.includes('transfer')) {
-      const match = message.match(/send (\d+(?:\.\d+)?) eth to (0x[a-fA-F0-9]{40})/i);
-      if (match) {
-        const [, amount, address] = match;
-        try {
-          const txHash = await wallet.sendTransaction(address, amount);
-          return {
-            content: `Transaction sent successfully! Hash: ${txHash}`,
-            action: {
-              type: 'transaction',
-              data: { hash: txHash },
-            },
-          };
-        } catch (error) {
-          return {
-            content: `Failed to send transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          };
-        }
-      }
-      return {
-        content: 'Please provide a valid amount and address in the format: "send X ETH to 0x..."',
-      };
-    }
-
-    // Default response for unknown queries
-    return {
-      content: 'I can help you with:\n- Checking your balance\n- Viewing transaction history\n- Sending ETH\n\nWhat would you like to do?',
-    };
-  };
-
-  const analyzeTransactions = async (transactions: Transaction[]): Promise<string> => {
-    if (transactions.length === 0) {
-      return 'No transactions to analyze.';
-    }
-
-    const totalSpent = transactions.reduce((sum, tx) => sum + parseFloat(tx.value), 0);
-    const totalGas = transactions.reduce((sum, tx) => sum + parseFloat(tx.gasPrice), 0);
-    const uniqueAddresses = new Set(transactions.map(tx => tx.to));
-
-    return `Here's an analysis of your transactions:
-- Total amount spent: ${totalSpent.toFixed(4)} ETH
-- Total gas fees: ${totalGas.toFixed(4)} Gwei
-- Number of unique recipients: ${uniqueAddresses.size}
-- Most recent transaction: ${new Date(transactions[0].timestamp * 1000).toLocaleDateString()}`;
   };
 
   return {
-    processMessage,
-    analyzeTransactions,
+    processMessage
   };
-} 
+}; 

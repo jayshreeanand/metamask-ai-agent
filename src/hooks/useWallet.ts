@@ -13,16 +13,80 @@ export function useWallet() {
 
   useEffect(() => {
     const checkConnection = async () => {
-      if (typeof window !== 'undefined' && window.ethereum?.selectedAddress) {
-        setAddress(window.ethereum.selectedAddress);
-        setIsConnected(true);
-        await fetchBalance(window.ethereum.selectedAddress);
-        await fetchTransactions(window.ethereum.selectedAddress);
+      try {
+        if (typeof window === 'undefined' || !window.ethereum) return;
+
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
+        if (accounts && accounts.length > 0) {
+          const currentAddress = accounts[0];
+          setAddress(currentAddress);
+          setIsConnected(true);
+          await fetchBalance(currentAddress);
+          await fetchTransactions(currentAddress);
+        }
+      } catch (err) {
+        console.error('Error checking connection:', err);
       }
     };
 
+    const handleAccountsChanged = (accounts: unknown) => {
+      const addresses = accounts as string[];
+      if (!addresses || addresses.length === 0) {
+        // User disconnected
+        setAddress(null);
+        setIsConnected(false);
+        setBalance(null);
+        setTransactions([]);
+      } else {
+        // User switched accounts
+        const newAddress = addresses[0];
+        setAddress(newAddress);
+        setIsConnected(true);
+        fetchBalance(newAddress).catch(console.error);
+        fetchTransactions(newAddress).catch(console.error);
+      }
+    };
+
+    const handleChainChanged = () => {
+      // Reload the page when chain changes
+      window.location.reload();
+    };
+
+    // Check initial connection
     checkConnection();
+
+    // Set up event listeners
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+    }
+
+    // Cleanup event listeners
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      }
+    };
   }, []);
+
+  const fetchBalance = async (address: string) => {
+    try {
+      const balance = await walletService.getBalance(address);
+      setBalance(balance);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch balance');
+    }
+  };
+
+  const fetchTransactions = async (address: string) => {
+    try {
+      const txs = await walletService.getTransactions(address);
+      setTransactions(txs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
+    }
+  };
 
   const connect = async () => {
     try {
@@ -53,24 +117,6 @@ export function useWallet() {
       setError(err instanceof Error ? err.message : 'Failed to disconnect wallet');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchBalance = async (address: string) => {
-    try {
-      const balance = await walletService.getBalance(address);
-      setBalance(balance);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch balance');
-    }
-  };
-
-  const fetchTransactions = async (address: string) => {
-    try {
-      const txs = await walletService.getTransactions(address);
-      setTransactions(txs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
     }
   };
 
