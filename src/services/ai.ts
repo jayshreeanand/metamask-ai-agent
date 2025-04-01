@@ -54,17 +54,24 @@ export const useAI = () => {
             const transactions = await walletService.getTransactions(address);
             const network = await getNetworkInfo(provider);
             
+            const tokenBalances = balance.tokens
+              .filter(token => parseFloat(token.balance) > 0)
+              .map(token => `${formatBalance(token.balance)} ${token.symbol}`)
+              .join('\n                 ');
+
             walletContext = `
               Current wallet state:
               - Network: ${network.name} (${network.chainId})
               - Address: ${address}
-              - Balance: ${formatBalance(balance.balance)} ${balance.symbol}
+              - Native Balance: ${formatBalance(balance.balance)} ${balance.symbol}
+              - Token Balances:
+                 ${tokenBalances || 'No token balances found'}
               - Number of recent transactions: ${transactions.length}
               
               Latest transactions:
               ${transactions.slice(0, 3).map(tx => 
                 `- ${tx.type === 'send' ? 'Sent' : 'Received'} ${formatBalance(tx.value)} ${balance.symbol}`
-              ).join('\n')}
+              ).join('\n              ')}
             `;
           } else {
             walletContext = 'No wallet is currently connected.';
