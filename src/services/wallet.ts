@@ -23,6 +23,9 @@ const NETWORK_TOKENS: { [chainId: string]: { [symbol: string]: string } } = {
   }
 };
 
+const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || '';
+const ETHERSCAN_BASE_URL = 'https://api.etherscan.io/api';
+
 export interface Transaction {
   hash: string;
   from: string;
@@ -142,37 +145,70 @@ export class WalletService {
     }
 
     try {
-      const blockNumber = await this.provider.getBlockNumber();
-      const block = await this.provider.getBlock(blockNumber);
-      const transactions: Transaction[] = [];
-
-      if (!block.transactions.length) {
-        return transactions;
+      const network = await this.provider.getNetwork();
+      let apiUrl = `${ETHERSCAN_BASE_URL}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+      
+      // For testnets, use the appropriate API endpoint
+      if (network.chainId !== 1) {
+        apiUrl = apiUrl.replace('api.etherscan.io', `api-${network.name}.etherscan.io`);
       }
 
-      for (const txHash of block.transactions) {
-        const tx = await this.provider.getTransaction(txHash);
-        if (!tx || (!tx.from && !tx.to)) continue;
+      const response = await fetch(apiUrl);
+      const data = await response.json();
 
-        if (tx.from.toLowerCase() === address.toLowerCase() || 
-            (tx.to && tx.to.toLowerCase() === address.toLowerCase())) {
-          transactions.push({
+      if (data.status === '1' && Array.isArray(data.result)) {
+        return data.result
+          .filter(tx => tx.isError === '0') // Only include successful transactions
+          .slice(0, 10) // Limit to 10 most recent transactions
+          .map(tx => ({
             hash: tx.hash,
             from: tx.from,
-            to: tx.to || '',
+            to: tx.to,
             value: ethers.utils.formatEther(tx.value),
-            timestamp: block.timestamp,
-            gasPrice: ethers.utils.formatUnits(tx.gasPrice || 0, 'gwei'),
-            gasUsed: tx.gasLimit.toString(),
+            timestamp: parseInt(tx.timeStamp),
+            gasPrice: ethers.utils.formatUnits(tx.gasPrice, 'gwei'),
+            gasUsed: tx.gasUsed,
             type: tx.from.toLowerCase() === address.toLowerCase() ? 'send' : 'receive'
-          });
-        }
+          }));
       }
 
-      return transactions;
+      return [];
     } catch (error) {
       console.error('Error getting transactions:', error);
-      throw error;
+      // Fallback to getting transactions from current block if Etherscan fails
+      try {
+        const blockNumber = await this.provider.getBlockNumber();
+        const block = await this.provider.getBlock(blockNumber);
+        const transactions: Transaction[] = [];
+
+        if (!block.transactions.length) {
+          return transactions;
+        }
+
+        for (const txHash of block.transactions.slice(0, 5)) {
+          const tx = await this.provider.getTransaction(txHash);
+          if (!tx || (!tx.from && !tx.to)) continue;
+
+          if (tx.from.toLowerCase() === address.toLowerCase() || 
+              (tx.to && tx.to.toLowerCase() === address.toLowerCase())) {
+            transactions.push({
+              hash: tx.hash,
+              from: tx.from,
+              to: tx.to || '',
+              value: ethers.utils.formatEther(tx.value),
+              timestamp: block.timestamp,
+              gasPrice: ethers.utils.formatUnits(tx.gasPrice || 0, 'gwei'),
+              gasUsed: tx.gasLimit.toString(),
+              type: tx.from.toLowerCase() === address.toLowerCase() ? 'send' : 'receive'
+            });
+          }
+        }
+
+        return transactions;
+      } catch (fallbackError) {
+        console.error('Error in fallback transaction fetching:', fallbackError);
+        return [];
+      }
     }
   }
 
