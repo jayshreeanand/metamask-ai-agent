@@ -8,6 +8,7 @@ export interface Transaction {
   timestamp: number;
   gasPrice: string;
   gasUsed: string;
+  type: 'send' | 'receive';
 }
 
 export interface WalletBalance {
@@ -50,8 +51,6 @@ export class WalletService {
   }
 
   async disconnect(): Promise<void> {
-    // MetaMask doesn't have a true disconnect method
-    // We'll just clear the provider
     this.provider = null;
   }
 
@@ -79,29 +78,34 @@ export class WalletService {
     }
 
     try {
-      // Note: This is a simplified version. In a real app, you'd want to use
-      // a service like Etherscan API to get transaction history
       const blockNumber = await this.provider.getBlockNumber();
       const block = await this.provider.getBlock(blockNumber);
-      
-      if (!block.transactions) {
-        return [];
+      const transactions: Transaction[] = [];
+
+      if (!block.transactions.length) {
+        return transactions;
       }
 
-      return block.transactions
-        .filter((tx): tx is TransactionResponse => 
-          typeof tx !== 'string' && 
-          (tx.from === address || tx.to === address)
-        )
-        .map(tx => ({
-          hash: tx.hash,
-          from: tx.from,
-          to: tx.to,
-          value: ethers.utils.formatEther(tx.value),
-          timestamp: block.timestamp,
-          gasPrice: ethers.utils.formatUnits(tx.gasPrice, 'gwei'),
-          gasUsed: tx.gasLimit.toString(),
-        }));
+      for (const txHash of block.transactions) {
+        const tx = await this.provider.getTransaction(txHash);
+        if (!tx || (!tx.from && !tx.to)) continue;
+
+        if (tx.from.toLowerCase() === address.toLowerCase() || 
+            (tx.to && tx.to.toLowerCase() === address.toLowerCase())) {
+          transactions.push({
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to || '',
+            value: ethers.utils.formatEther(tx.value),
+            timestamp: block.timestamp,
+            gasPrice: ethers.utils.formatUnits(tx.gasPrice || 0, 'gwei'),
+            gasUsed: tx.gasLimit.toString(),
+            type: tx.from.toLowerCase() === address.toLowerCase() ? 'send' : 'receive'
+          });
+        }
+      }
+
+      return transactions;
     } catch (error) {
       console.error('Error getting transactions:', error);
       throw error;
