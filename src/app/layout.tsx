@@ -20,18 +20,18 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <MetaMaskProvider>
-          <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
-            <nav className="bg-white/10 backdrop-blur-lg border-b border-white/10">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between h-16">
-                  <div className="flex items-center space-x-2">
+          <div className="min-h-screen bg-gray-900">
+            <nav className="bg-gray-800 border-b border-gray-700">
+              <div className="max-w-7xl mx-auto px-4">
+                <div className="flex h-16 items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <WalletIcon className="h-8 w-8 text-blue-500" />
                     <h1 className="text-xl font-bold text-white">MetaMask AI Agent</h1>
                   </div>
                 </div>
               </div>
             </nav>
-            <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <main className="max-w-7xl mx-auto p-4">
               {children}
             </main>
           </div>
