@@ -12,6 +12,13 @@ interface Message {
   content: string;
 }
 
+const QUICK_CHATS = [
+  { text: "What's my balance?", icon: "💰" },
+  { text: "Show recent transactions", icon: "📝" },
+  { text: "Show my tokens", icon: "🪙" },
+  { text: "Which network am I on?", icon: "🌐" },
+];
+
 export default function Home() {
   const { isConnected } = useWallet();
   const { processMessage } = useAI();
@@ -19,13 +26,16 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !isConnected) return;
+  const handleSendMessage = async (e: React.FormEvent | string) => {
+    if (typeof e !== 'string' && e?.preventDefault) {
+      e.preventDefault();
+    }
+    const messageText = typeof e === 'string' ? e : input;
+    if (!messageText.trim() || !isConnected) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: messageText,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -33,7 +43,7 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      const response = await processMessage(input);
+      const response = await processMessage(messageText);
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.content,
@@ -163,6 +173,26 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+
+                {/* Quick Chat Options */}
+                {isConnected && messages.length === 0 && (
+                  <div className="mb-6">
+                    <div className="text-sm font-medium text-[#535A61] mb-3">Quick Questions:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {QUICK_CHATS.map((chat, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleSendMessage(chat.text)}
+                          className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#F2F4F6] hover:bg-[#037DD6]/10 text-[#24272A] transition-colors"
+                        >
+                          <span>{chat.icon}</span>
+                          <span>{chat.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-6">
                   <form onSubmit={handleSendMessage} className="flex space-x-4">
                     <input
